@@ -73,37 +73,23 @@ U = opti.variable(1,N);
 opti.subject_to(-1 < U < 1);
 opti.set_initial(U,0);
 
-
-Xk = MX.sym('Xk',2);
-Xkmesh = MX.sym('Xkmesh',2,d);
-Xkj = [Xk Xkmesh];
-Uk = MX.sym('Uk');
-
-J = 0;
-constr = {};
-% Loop over collocation points
-for j=1:d
-   % Expression for the state derivative at the collocation point
-   xp = Xkj*C{1,j+1}';       
-   % Append collocation equations
-   fj = f1(Xkj(:,j+1),Uk);
-   constr{end+1} = h*fj - xp;
-   % Add contribution to quadrature function
-   qj = f2(Xkj(:,j+1),Uk);
-   J = J + qj*h;
-end
-constr = vertcat(constr{:});
-f_coll = Function('f_coll',{Xk,Xkmesh,Uk},{constr,J});
-
-f_coll_map = f_coll.map(N,'thread',8);
-[coll_constr, Jall] = f_coll_map(X(:,1:end-1),Xmesh,U);
-opti.subject_to(coll_constr==0);
-
 % Formulate the NLP
-J = sum(Jall);
+J = 0;
 for k=1:N    
     Xk = X(:,k);
     Xkj = [Xk Xmesh(:,(k-1)*d+1:k*d)];
+    Uk = U(:,k);
+    % Loop over collocation points
+    for j=1:d
+       % Expression for the state derivative at the collocation point
+       xp = Xkj*C{1,j+1}';       
+       % Append collocation equations
+       fj = f1(Xkj(:,j+1),Uk);
+       opti.subject_to(h*fj == xp);       
+       % Add contribution to quadrature function
+       qj = f2(Xkj(:,j+1),Uk);
+       J = J + qj*h;
+    end    
     % State continuity at mesh transition
     opti.subject_to(X(:,k+1)== Xkj*D');
 end
